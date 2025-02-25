@@ -1,0 +1,184 @@
+name: Update README
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - '**.cs'
+      - '**.csproj'
+      - '**.sln'
+      - '.github/workflows/update-readme.yml'
+  pull_request:
+    branches: [ master ]
+    types: [closed]
+    paths:
+      - 'src/**'
+      - '**.cs'
+      - '**.csproj'
+      - '**.sln'
+      - '.github/workflows/update-readme.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  update-readme:
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 8.0.x
+      
+      - name: Restore local tools
+        run: |
+          if [ ! -f ".config/dotnet-tools.json" ]; then
+            dotnet new tool-manifest
+          fi
+          if ! grep -q "Kodify.CLI" .config/dotnet-tools.json 2>/dev/null; then
+            dotnet tool install --local Kodify.CLI --version 0.0.1-dev-0003
+          fi
+          dotnet tool restore
+      
+      - name: Get PR Info
+        if: github.event_name == 'pull_request'
+        id: pr-info
+        run: |
+          echo "title=${{ github.event.pull_request.title }}" >> $GITHUB_OUTPUT
+          echo "description=${{ github.event.pull_request.body }}" >> $GITHUB_OUTPUT
+      
+      - name: Generate README
+        run: |
+          # Set default values
+          REPO_NAME="${{ github.event.repository.name }}"
+          PROJECT_NAME="${REPO_NAME//-/ }"
+          CLASS_NAME="${REPO_NAME//-/}"
+          
+          # Extract key features from existing README if it exists
+          KEY_FEATURES=""
+          if [ -f "README.md" ]; then
+            FEATURES_SECTION=$(sed -n '/## Key Features/,/##/p' README.md | grep -v "## Key Features" | grep -v "##")
+            if [ ! -z "$FEATURES_SECTION" ]; then
+              KEY_FEATURES="$FEATURES_SECTION"
+            else
+              KEY_FEATURES=$'- Interactive user interface\n- Responsive design\n- Cross-browser compatibility\n- Extensible architecture'
+            fi
+          else
+            KEY_FEATURES=$'- Interactive user interface\n- Responsive design\n- Cross-browser compatibility\n- Extensible architecture'
+          fi
+          
+          # Get license info
+          LICENSE_INFO="This project is licensed under the MIT License - see the LICENSE file for details."
+          if [ -f "LICENSE" ]; then
+            LICENSE_TYPE=$(head -n 1 LICENSE | grep -o "MIT\|Apache\|GPL\|BSD")
+            if [ ! -z "$LICENSE_TYPE" ]; then
+              LICENSE_INFO="This project is licensed under the $LICENSE_TYPE License - see the LICENSE file for details."
+            fi
+          fi
+          
+          # Set summary and description
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            SUMMARY="${{ steps.pr-info.outputs.title }}"
+            DESCRIPTION="${{ steps.pr-info.outputs.description }}"
+          else
+            SUMMARY="A modern .NET application for efficient development workflows."
+            DESCRIPTION="This project provides tools and utilities to enhance developer productivity and streamline common tasks."
+          fi
+          
+          # Create usage instructions
+          USAGE_INSTRUCTIONS="$(cat << 'EOF'
+          ```csharp
+          // Example usage
+          var app = new ${CLASS_NAME}App();
+          app.Run();
+          ```
+          EOF
+          )"
+          
+          # Create README content
+          cat > readme-template.md << EOF
+          # $PROJECT_NAME
+
+          $SUMMARY
+
+          ## Description
+
+          $DESCRIPTION
+
+          ## Installation
+
+          \`\`\`bash
+          # Install as a .NET tool
+          dotnet tool install --global $PROJECT_NAME
+
+          # Or clone the repository
+          git clone https://github.com/$GITHUB_REPOSITORY.git
+          cd \$(basename $GITHUB_REPOSITORY)
+          dotnet build
+          \`\`\`
+
+          ## Usage
+
+          $USAGE_INSTRUCTIONS
+
+          ## Key Features
+
+          $KEY_FEATURES
+
+          ## Requirements
+
+          - .NET 8.0 or higher
+          - Compatible with Windows, macOS, and Linux
+
+          ## License
+
+          $LICENSE_INFO
+
+          ## Contributing
+
+          Contributions are welcome! Please feel free to submit a Pull Request.
+          EOF
+          
+          # Generate README using the template
+          dotnet kodify readme --template ./readme-template.md --name "$PROJECT_NAME"
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          git add -A
+          git diff --staged --quiet || echo "changes=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and Push Changes
+        if: steps.git-check.outputs.changes == 'true'
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git commit -m "Update README.md [skip ci]"
+          remote_repo="https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push "${remote_repo}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: No Changes
+        if: steps.git-check.outputs.changes != 'true'
+        run: echo "No changes to the README were detected."
+
+      - name: Clean up
+        if: always()
+        run: |
+          if [ -f "readme-template.md" ]; then
+            rm readme-template.md
+          fi

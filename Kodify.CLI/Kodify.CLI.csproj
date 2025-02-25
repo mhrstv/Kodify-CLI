@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>Kodify.CLI</PackageId>
+    <Description>A command-line interface for Kodify tools that can be used in CI/CD pipelines and development workflows.</Description>
+    <Version>0.0.1</Version>
+    <Authors>mhrstv</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>kodify</ToolCommandName>
+    <PackageOutputPath>./nupkg</PackageOutputPath>
+
+    <PackageProjectUrl>https://github.com/mhrstv/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/mhrstv/Kodify-CLI</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Kodify" Version="0.1.9" />
+    <PackageReference Include="Kodify.DevOps" Version="0.1.9" />
+    <PackageReference Include="Kodify.Extensions" Version="0.1.9" />
+    <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
+  </ItemGroup>
+
+  <!--<ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>-->
+</Project>

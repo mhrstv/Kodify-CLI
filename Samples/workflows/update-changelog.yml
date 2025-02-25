@@ -1,0 +1,91 @@
+name: Update Changelog
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+    types: [closed]
+  
+  # Allow manual triggering
+  workflow_dispatch:
+
+# Add permissions block
+permissions:
+  contents: write
+
+jobs:
+  update-changelog:
+    # Only run on merged PRs or direct pushes to main/master
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        # Fetch all history for proper changelog generation
+        fetch-depth: 0
+        # Use token with write permissions
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 8.0.x
+    
+    # Install Kodify CLI as a local tool
+    - name: Restore local tools
+      run: |
+        # Create tool manifest if it doesn't exist
+        if [ ! -f ".config/dotnet-tools.json" ]; then
+          dotnet new tool-manifest
+        fi
+        
+        # Add Kodify.CLI to the manifest if not already there
+        if ! grep -q "Kodify.CLI" .config/dotnet-tools.json 2>/dev/null; then
+          dotnet tool install --local Kodify.CLI --version 0.0.1-dev-0003
+        fi
+        
+        # Restore tools from manifest
+        dotnet tool restore
+    
+    # Ensure CHANGELOG.md exists
+    - name: Create CHANGELOG.md if not exists
+      run: |
+        if [ ! -f "CHANGELOG.md" ]; then
+          touch CHANGELOG.md
+          git add CHANGELOG.md
+        fi
+    
+    # Generate changelog
+    - name: Generate Changelog
+      run: dotnet kodify changelog
+      env:
+        # Optional: Pass API key from GitHub secrets if you want to use AI features
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    
+    # Check if there are changes to commit (including untracked files)
+    - name: Check for changes
+      id: git-check
+      run: |
+        git add -A
+        git diff --staged --quiet || echo "changes=true" >> $GITHUB_OUTPUT
+    
+    # Commit and push changes if any
+    - name: Commit and Push Changes
+      if: steps.git-check.outputs.changes == 'true'
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git commit -m "Update CHANGELOG.md [skip ci]"
+        # Use authenticated HTTPS URL for pushing
+        remote_repo="https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+        git push "${remote_repo}"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # Notify if no changes were made
+    - name: No Changes
+      if: steps.git-check.outputs.changes != 'true'
+      run: echo "No changes to the changelog were detected."

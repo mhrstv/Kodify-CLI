@@ -1,0 +1,55 @@
+name: Generate Azure DevOps Pipeline
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+    types: [closed]
+  
+  # Allow manual triggering
+  workflow_dispatch:
+
+# Add permissions block
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install Kodify CLI
+        run: |
+          dotnet tool install --global Kodify.CLI --version 0.0.1-dev-0004 || dotnet tool update --global Kodify.CLI --version 0.0.1-dev-0004
+
+      - name: Check for existing pipeline
+        id: check_files
+        run: |
+          if [ -f "azure-pipelines.yml" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Azure DevOps pipeline
+        if: steps.check_files.outputs.exists == 'false'
+        run: kodify azuredevops
+
+      - name: Commit and push changes
+        if: steps.check_files.outputs.exists == 'false'
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add azure-pipelines.yml
+          git commit -m "chore: add azure devops pipeline [skip ci]"
+          git push
