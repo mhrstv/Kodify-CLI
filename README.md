@@ -36,11 +36,11 @@ kodify [command] [options]
 
 ### Available Commands
 
-- `generate-changelog`: Generate a changelog from your git history
-- `generate-readme`: Create a standardized README file
-- `github-actions`: Generate GitHub Actions workflow files
-- `gitlab-ci`: Generate GitLab CI pipeline configurations
-- `azure-devops`: Generate Azure DevOps pipeline definitions
+- `changelog`: Generate a changelog from your git history
+- `readme`: Create a standardized README file
+- `githubactions`: Generate GitHub Actions workflow files
+- `gitlabci`: Generate GitLab CI pipeline configurations
+- `azuredevops`: Generate Azure DevOps pipeline definitions
 - `terraform`: Generate Terraform configuration files
 - `cloudformation`: Generate AWS CloudFormation templates
 - `puml`: Generate PlantUML diagrams
